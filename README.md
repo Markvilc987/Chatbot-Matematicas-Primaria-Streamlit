@@ -81,3 +81,4 @@ streamlit run app.py
 ## 📜 Licencia
 
 Distribuido bajo la licencia **MIT**. Libre para uso educativo, escolar, investigativo y comunitario.
+

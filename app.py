@@ -146,15 +146,13 @@ TUS REGLAS Y PRINCIPIOS DE RETROALIMENTACIÓN:
    - Si el estudiante te envía una imagen de su cuaderno o libro, lee con atención el problema matemático y empieza preguntándole cuál es el primer dato que observa.
 """
 
-# Inicializar el modelo Gemini 1.5 Flash
-try:
-    model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
-        system_instruction=SYSTEM_INSTRUCTIONS
-    )
-except Exception as e:
-    st.error(f"Error al inicializar el modelo de IA: {e}")
-    st.stop()
+# Lista de modelos soportados con fallback automático
+AVAILABLE_MODELS = [
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-flash-lite-latest"
+]
 
 # 4. Gestión del historial de conversación
 if "messages" not in st.session_state:
@@ -201,23 +199,37 @@ if prompt:
             "parts": [m["content"]]
         })
 
-    # Generar respuesta con spinner
+    # Generar respuesta con spinner y fallback automático
     with st.chat_message("assistant", avatar="🦉"):
         with st.spinner("MateTutor está pensando una pista para ti... 💡"):
-            try:
-                chat = model.start_chat(history=chat_history)
-                if img_attachment is not None:
-                    response = chat.send_message([prompt, img_attachment])
-                else:
-                    response = chat.send_message(prompt)
+            reply_text = None
+            last_error = None
+            for model_cand in AVAILABLE_MODELS:
+                try:
+                    curr_model = genai.GenerativeModel(
+                        model_name=model_cand,
+                        system_instruction=SYSTEM_INSTRUCTIONS
+                    )
+                    chat = curr_model.start_chat(history=chat_history)
+                    if img_attachment is not None:
+                        response = chat.send_message([prompt, img_attachment])
+                    else:
+                        response = chat.send_message(prompt)
+                    
+                    if response and response.text:
+                        reply_text = response.text
+                        break
+                except Exception as err:
+                    last_error = err
+                    continue
 
-                reply_text = response.text
+            if reply_text:
                 st.markdown(reply_text)
-                
                 st.session_state.messages.append({
                     "role": "assistant",
                     "content": reply_text,
                     "avatar": "🦉"
                 })
-            except Exception as e:
-                st.error(f"Lo siento, ocurrió una pequeña pausa en la conexión: {e}")
+            else:
+                st.error(f"Lo siento, ocurrió una pequeña pausa en la conexión: {last_error}")
+
